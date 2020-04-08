@@ -1,0 +1,13 @@
+
+*.h
+linux/uapi/Kbuild
+.vs/ioMemory-vsl4/v16/.suo
+.vs/ioMemory-vsl4/v16/Browse.VC.db
+.vs/ioMemory-vsl4/v16/Browse.VC.opendb
+.vs/ioMemory-vsl4/v16/ipch/AutoPCH/477b7bf0cd13c61/KCPU.ipch
+.vs/ioMemory-vsl4/v16/ipch/AutoPCH/ab3432331794f1e1/KSCATTER.ipch
+.vs/ProjectSettings.json
+.vs/slnx.sqlite
+.vs/VSWorkspaceState.json
+linux/asm-generic/Kbuild
+linux/uapi/asm-generic/Kbuild

@@ -531,12 +531,13 @@ int kfio_sgl_map_bio(kfio_sg_list_t *sgl, struct bio *pbio)
     uint32_t old_len, old_sgl_size, old_sgl_len;
     int rval = 0;
 
+    // Note: bio->bi_phys_segments was removed from Kernel 5.0 and later. It seems better to let the code below handle it now.
     // Make sure combining this pbio into the current sgl won't result in too many sg vectors.
     // The bio_for_each_segment() loop below will catch this, but it seems more efficient to catch it here.
-    if (lsg->num_entries + pbio->bi_phys_segments > lsg->max_entries)
-    {
-        return -EAGAIN;                 // Too many segments. Try the pbio again.
-    }
+    //if (lsg->num_entries + pbio->bi_phys_segments > lsg->max_entries)
+    //{
+    //   return -EAGAIN;                 // Too many segments. Try the pbio again.
+    // }
 
     /* Remember SGL vitals in case we need to back out. */
     if (lsg->num_entries > 0)

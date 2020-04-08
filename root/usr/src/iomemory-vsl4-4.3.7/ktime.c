@@ -123,7 +123,7 @@ uint64_t noinline fusion_getmicrotime(void)
 /// @brief return current UTC wall clock time in seconds since the Unix epoch (Jan 1 1970).
 uint64_t noinline fusion_getwallclocktime(void)
 {
-    struct timespec ts = current_kernel_time();
+    struct timespec64 ts = ktime_to_timespec64(ktime_get_coarse_real());
 
     return (uint64_t)ts.tv_sec;
 }
