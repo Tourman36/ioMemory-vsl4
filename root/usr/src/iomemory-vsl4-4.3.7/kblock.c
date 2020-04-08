@@ -886,6 +886,9 @@ static int linux_bdev_expose_disk(struct fio_bdev *bdev)
 # endif
 #elif KFIOC_HAS_QUEUE_LIMITS_CLUSTER
     rq->limits.cluster = 0;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+    // Linux from 5.0 > removed the limits.cluster: https://patchwork.kernel.org/patch/10716231/
+    // Note: https://patchwork.kernel.org/patch/10697291/ - do we need to set anything else to limit segments from spanning multiple pages?
 #else
 # ifndef __VMKLNX__
 #  error "Do not know how to disable request queue clustering for this kernel."
@@ -1317,12 +1320,12 @@ void linux_bdev_update_stats(struct fio_bdev *bdev, int dir, uint64_t totalsize,
              * rcu_read_update which is GPL in the RT patch set.
              */
             cpu = part_stat_lock();
-            part_stat_inc(cpu, &gd->part0, ios[1]);
-            part_stat_add(cpu, &gd->part0, sectors[1], totalsize >> 9);
+            part_stat_inc(&gd->part0, ios[1]);
+            part_stat_add(&gd->part0, sectors[1], totalsize >> 9);
 #if KFIOC_HAS_DISK_STATS_NSECS
-            part_stat_add(cpu, &gd->part0, nsecs[1],   duration * FIO_NSEC_PER_USEC);   // Convert our usec duration to nsecs.
+            part_stat_add(&gd->part0, nsecs[1],   duration * FIO_NSEC_PER_USEC);   // Convert our usec duration to nsecs.
 #else
-            part_stat_add(cpu, &gd->part0, ticks[1],   kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
+            part_stat_add(&gd->part0, ticks[1],   kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
 #endif
             part_stat_unlock();
 # endif /* defined(CONFIG_PREEMPT_RT) */
@@ -1358,12 +1361,12 @@ void linux_bdev_update_stats(struct fio_bdev *bdev, int dir, uint64_t totalsize,
             /* part_stat_lock() with defined(CONFIG_PREEMPT_RT) can't be used!
                It ends up calling rcu_read_update which is GPL in the RT patch set */
             cpu = part_stat_lock();
-            part_stat_inc(cpu, &gd->part0, ios[0]);
-            part_stat_add(cpu, &gd->part0, sectors[0], totalsize >> 9);
+            part_stat_inc(&gd->part0, ios[0]);
+            part_stat_add(&gd->part0, sectors[0], totalsize >> 9);
 #if KFIOC_HAS_DISK_STATS_NSECS
-            part_stat_add(cpu, &gd->part0, nsecs[0],   duration * FIO_NSEC_PER_USEC);
+            part_stat_add(&gd->part0, nsecs[0],   duration * FIO_NSEC_PER_USEC);
 #else
-            part_stat_add(cpu, &gd->part0, ticks[0],   kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
+            part_stat_add(&gd->part0, ticks[0],   kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
 #endif
             part_stat_unlock();
 # endif /* defined(CONFIG_PREEMPT_RT) */
@@ -2320,7 +2323,7 @@ static struct request_queue *kfio_alloc_queue(struct kfio_disk *dp,
     {
         rq->queuedata = dp;
         blk_queue_make_request(rq, kfio_make_request);
-        rq->queue_lock = (spinlock_t *)&dp->queue_lock;
+        rq->queue_lock = (spinlock_t)dp->queue_lock;
 #if KFIOC_REQUEST_QUEUE_HAS_UNPLUG_FN
         rq->unplug_fn = kfio_unplug;
 #endif
@@ -2361,7 +2364,7 @@ static void linux_bdev_backpressure(struct fio_bdev *bdev, int on)
          * be called here with internal locks held and with IRQs
          * disabled.
          */
-        if (q->request_fn)
+        if (q->make_request_fn)
         {
             /*
              * The VMKernel initializes the request_queue in their implementation of
@@ -2415,7 +2418,7 @@ void linux_bdev_lock_pending(struct fio_bdev *bdev, int pending)
      * Only the request_fn driven model issues requests in a non-blocking
      * manner. The direct queued model does not need this.
      */
-    if (q->request_fn == NULL)
+    if (q->make_request_fn == NULL)
     {
         return;
     }
@@ -2609,7 +2612,7 @@ static int kfio_make_request(struct request_queue *queue, struct bio *bio)
     // Split the incomming bio if it has more segments than we have scatter-gather DMA vectors,
     //   and re-submit the remainder to the request queue. blk_queue_split() does all that for us.
     // It appears the kernel quit honoring the blk_queue_max_segments() in about 4.13.
-    if (bio_phys_segments(queue, bio) >= queue_max_segments(queue))
+    if (bio_segments(queue, bio) >= queue_max_segments(queue))
     {
         blk_queue_split(queue, &bio);
     }
