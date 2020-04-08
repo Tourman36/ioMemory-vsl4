@@ -123,11 +123,16 @@ uint64_t noinline fusion_getmicrotime(void)
 /// @brief return current UTC wall clock time in seconds since the Unix epoch (Jan 1 1970).
 uint64_t noinline fusion_getwallclocktime(void)
 {
-    struct timespec64 ts = ktime_to_timespec64(ktime_get_coarse_real());
+#if KFIOC_X_HAS_COARSE_REAL_TS
+    struct timespec64 ts;
+
+    ktime_get_coarse_real_ts64(&ts);
+#else
+    struct timespec ts = current_kernel_time();
+#endif
 
     return (uint64_t)ts.tv_sec;
 }
-
 /*******************************************************************************
 *******************************************************************************/
 uint64_t noinline fusion_usectohz(uint64_t u)
@@ -151,6 +156,7 @@ uint64_t noinline fusion_hztousec(uint64_t hertz)
     return (hertz * (1000000 / HZ));
 }
 
+// Note - all of these functions were previously commented out in the original source code
 /**
  * support for delayed one shots
  */

@@ -85,7 +85,7 @@
 #include <linux/buffer_head.h>
 #endif
 
-#if KFIOC_HAS_BLK_MQ
+#if !KFIOC_HAS_BLK_STOP_QUEUE
 #include <linux/blk-mq.h>
 #endif
 extern int use_workqueue;
@@ -877,12 +877,14 @@ static int linux_bdev_expose_disk(struct fio_bdev *bdev)
 #endif
 
 #if KFIOC_HAS_QUEUE_FLAG_CLUSTER
-# if KFIOC_USE_BLK_QUEUE_FLAGS_FUNCTIONS
+# if KFIOC_X_HAS_BLK_QUEUE_FLAG_OPS
     blk_queue_flag_clear(QUEUE_FLAG_CLUSTER, rq);
-# elif KFIOC_HAS_QUEUE_FLAG_CLEAR_UNLOCKED
-    queue_flag_clear_unlocked(QUEUE_FLAG_CLUSTER, rq);
 # else
+#  if KFIOC_HAS_QUEUE_FLAG_CLEAR_UNLOCKED
+    queue_flag_clear_unlocked(QUEUE_FLAG_CLUSTER, rq);
+#  else
     rq->queue_flags &= ~(1 << QUEUE_FLAG_CLUSTER);
+#  endif
 # endif
 #elif KFIOC_HAS_QUEUE_LIMITS_CLUSTER
     rq->limits.cluster = 0;
@@ -964,19 +966,19 @@ static int linux_bdev_expose_disk(struct fio_bdev *bdev)
 
 #if KFIOC_QUEUE_HAS_NONROT_FLAG
     /* Tell the kernel we are a non-rotational storage device */
-#if KFIOC_USE_BLK_QUEUE_FLAGS_FUNCTIONS
+# if KFIOC_X_HAS_BLK_QUEUE_FLAG_OPS
     blk_queue_flag_set(QUEUE_FLAG_NONROT, rq);
-#else
+# else
     queue_flag_set_unlocked(QUEUE_FLAG_NONROT, rq);
-#endif
+# endif
 #endif
 #if KFIOC_QUEUE_HAS_RANDOM_FLAG
     /* Disable device global entropy contribution */
-#if KFIOC_USE_BLK_QUEUE_FLAGS_FUNCTIONS
+# if KFIOC_X_HAS_BLK_QUEUE_FLAG_OPS
     blk_queue_flag_clear(QUEUE_FLAG_ADD_RANDOM, rq);
-#else
+# else
     queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, rq);
-#endif
+# endif
 #endif
 
     disk->gd = gd = alloc_disk(FIO_NUM_MINORS);
@@ -1136,18 +1138,13 @@ static int linux_bdev_hide_disk(struct fio_bdev *bdev, uint32_t opflags)
         /*
          * Prevent request_fn callback from interfering with
          * the queue shutdown.
-         */
-#if KFIOC_HAS_BLK_MQ
-        if (disk->rq->mq_ops)
-        {
-            blk_mq_stop_hw_queues(disk->rq);
-        }
-        else
-#endif
-        {
-            blk_stop_queue(disk->rq);
-        }
+         */ 
 
+#if defined(__VMKLNX__) || KFIOC_HAS_BLK_STOP_QUEUE
+        blk_stop_queue(disk->rq);
+#else
+        blk_mq_stop_hw_queues(disk->rq);
+#endif
         /*
          * The queue is stopped and dead and no new user requests will be
          * coming to it anymore. Fetch remaining already queued requests
@@ -1311,8 +1308,8 @@ void linux_bdev_update_stats(struct fio_bdev *bdev, int dir, uint64_t totalsize,
       (defined(CONFIG_PREEMPT_RT) || defined(CONFIG_TREE_PREEMPT_RCU) || defined(CONFIG_PREEMPT_RCU)))
             struct gendisk *gd = disk->gd;
 #endif
-# if KFIOC_PARTITION_STATS
-# if !defined(CONFIG_PREEMPT_RT) && !defined(CONFIG_TREE_PREEMPT_RCU) && !defined(CONFIG_PREEMPT_RCU)
+#if KFIOC_PARTITION_STATS
+#   if !defined(CONFIG_PREEMPT_RT) && !defined(CONFIG_TREE_PREEMPT_RCU) && !defined(CONFIG_PREEMPT_RCU)
             int cpu;
 
             /*
@@ -1320,15 +1317,26 @@ void linux_bdev_update_stats(struct fio_bdev *bdev, int dir, uint64_t totalsize,
              * rcu_read_update which is GPL in the RT patch set.
              */
             cpu = part_stat_lock();
+#       if KFIOC_X_PART_STAT_REQUIRES_CPU
+            part_stat_inc(cpu, &gd->part0, ios[1]);
+            part_stat_add(cpu, &gd->part0, sectors[1], totalsize >> 9);
+#       else
             part_stat_inc(&gd->part0, ios[1]);
             part_stat_add(&gd->part0, sectors[1], totalsize >> 9);
-#if KFIOC_HAS_DISK_STATS_NSECS
-            part_stat_add(&gd->part0, nsecs[1],   duration * FIO_NSEC_PER_USEC);   // Convert our usec duration to nsecs.
-#else
-            part_stat_add(&gd->part0, ticks[1],   kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
-#endif
+#       endif
+#       if KFIOC_X_HAS_DISK_STATS_NSECS && KFIOC_X_PART_STAT_REQUIRES_CPU
+                part_stat_add(cpu, &gd->part0, nsecs[1],   duration * FIO_NSEC_PER_USEC);   // Convert our usec duration to nsecs.
+#       elif KFIOC_X_HAS_DISK_STATS_NSECS && !KFIOC_XPART_STAT_REQUIRES_CPU
+                part_stat_add(&gd->part0, nsecs[1], duration * FIO_NSEC_PER_USEC);   // Convert our usec duration to nsecs.
+#       else
+#           if KFIOC_X_PART_STAT_REQUIRES_CPU
+                part_stat_add(cpu, &gd->part0, ticks[1], kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
+#           else
+                part_stat_add(&gd->part0, ticks[1], kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
+#       endif
+#   endif
             part_stat_unlock();
-# endif /* defined(CONFIG_PREEMPT_RT) */
+#endif /* defined(CONFIG_PREEMPT_RT) */
 # else /* KFIOC_PARTITION_STATS */
 
 #  if KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
@@ -1355,21 +1363,32 @@ void linux_bdev_update_stats(struct fio_bdev *bdev, int dir, uint64_t totalsize,
             struct gendisk *gd = disk->gd;
 #endif
 # if KFIOC_PARTITION_STATS
-# if !defined(CONFIG_PREEMPT_RT) && !defined(CONFIG_TREE_PREEMPT_RCU) && !defined(CONFIG_PREEMPT_RCU)
+#   if !defined(CONFIG_PREEMPT_RT) && !defined(CONFIG_TREE_PREEMPT_RCU) && !defined(CONFIG_PREEMPT_RCU)
             int cpu;
 
             /* part_stat_lock() with defined(CONFIG_PREEMPT_RT) can't be used!
                It ends up calling rcu_read_update which is GPL in the RT patch set */
             cpu = part_stat_lock();
-            part_stat_inc(&gd->part0, ios[0]);
-            part_stat_add(&gd->part0, sectors[0], totalsize >> 9);
-#if KFIOC_HAS_DISK_STATS_NSECS
-            part_stat_add(&gd->part0, nsecs[0],   duration * FIO_NSEC_PER_USEC);
-#else
-            part_stat_add(&gd->part0, ticks[0],   kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
-#endif
+#       if KFIOC_X_PART_STAT_REQUIRES_CPU
+                part_stat_inc(cpu, &gd->part0, ios[0]);
+                part_stat_add(cpu, &gd->part0, sectors[0], totalsize >> 9);
+#       else
+                part_stat_inc(&gd->part0, ios[0]);
+                part_stat_add(&gd->part0, sectors[0], totalsize >> 9);
+#       endif
+#       if KFIOC_X_HAS_DISK_STATS_NSECS && KFIOC_X_PART_STAT_REQUIRES_CPU
+                part_stat_add(cpu, &gd->part0, nsecs[0], duration * FIO_NSEC_PER_USEC);
+#       elif KFIOC_X_HAS_DISK_STATS_NSECS
+                part_stat_add(&gd->part0, nsecs[0], duration * FIO_NSEC_PER_USEC);
+#       else
+#           if KFIOC_X_PART_STAT_REQUIRES_CPU
+                part_stat_add(cpu, &gd->part0, ticks[0], kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
+#           else
+                part_stat_add(&gd->part0, ticks[0], kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
+#           endif
+#       endif
             part_stat_unlock();
-# endif /* defined(CONFIG_PREEMPT_RT) */
+#   endif /* defined(CONFIG_PREEMPT_RT) */
 # else /* KFIOC_PARTITION_STATS */
 #  if KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
             disk_stat_inc(gd, ios[0]);
@@ -1395,28 +1414,29 @@ static int kfio_get_gd_in_flight(kfio_disk_t *disk, int rw)
 {
     struct gendisk *gd = disk->gd;
 #if KFIOC_PARTITION_STATS
-#if KFIOC_HAS_INFLIGHT_RW || KFIOC_HAS_INFLIGHT_RW_ATOMIC
-    int dir = 0;
+#   if KFIOC_HAS_INFLIGHT_RW || KFIOC_HAS_INFLIGHT_RW_ATOMIC
+        int dir = 0;
 
-    // In the Linux kernel the direction isn't explicitly defined, however
-    // in linux/bio.h, you'll notice that its referenced as 1 for write and 0
-    // for read.
+        // In the Linux kernel the direction isn't explicitly defined, however
+        // in linux/bio.h, you'll notice that its referenced as 1 for write and 0
+        // for read.
 
-    if (rw == BIO_DIR_WRITE)
-        dir = 1;
+        if (rw == BIO_DIR_WRITE)
+            dir = 1;
 
-#if KFIOC_HAS_INFLIGHT_RW_ATOMIC
-    return atomic_read(&gd->part0.in_flight[dir]);
+#       if KFIOC_HAS_INFLIGHT_RW_ATOMIC
+            return atomic_read(&gd->part0.in_flight[dir]);
+#       else
+            return gd->part0.in_flight[dir];
+#       endif /* KFIOC_HAS_INFLIGHT_RW_ATOMIC */
+#   elif KFIOC_X_PART0_HAS_IN_FLIGHT
+        return gd->part0.in_flight;
+#   else
+        return part_stat_read(&gd->part0, ios[STAT_WRITE]);
+#   endif /* KFIOC_HAS_INFLIGHT_RW  */
 #else
-    return gd->part0.in_flight[dir];
-#endif
-#else
-    return gd->part0.in_flight;
-#endif
-# else
     return gd->in_flight;
-# endif
-}
+    }
 #endif /* !defined(__VMKLNX__) && !KFIOC_PARTITION_STATS */
 
 void linux_bdev_update_inflight(struct fio_bdev *bdev, int rw, int in_flight)
@@ -1446,7 +1466,7 @@ void linux_bdev_update_inflight(struct fio_bdev *bdev, int rw, int in_flight)
 #if KFIOC_HAS_INFLIGHT_RW_ATOMIC
         atomic_set(&gd->part0.in_flight[dir], in_flight);
 #else
-        gd->part0.in_flight[dir] = in_flight;
+        gd->part0.dkstats.in_flight[dir] = in_flight;
 #endif
 #else
         gd->part0.in_flight = in_flight;
@@ -1489,7 +1509,7 @@ static int kfio_bio_is_discard(struct bio *bio)
 /// @brief   Dump an OS bio to the log
 /// @param   msg   prefix for message
 /// @param   bio   the bio to drop
-static void kfio_dump_bio(const char *msg, const struct bio * const bio)
+static void kfio_dump_bio(const char *msg, struct bio * bio)
 {
     uint64_t sector;
 
@@ -1505,7 +1525,7 @@ static void kfio_dump_bio(const char *msg, const struct bio * const bio)
              sector, (unsigned long)bio->bi_flags, bio->bi_rw, bio->bi_vcnt);
 #endif
     infprint("%s : idx: %x : phys_segments: %x : size: %x",
-             msg, BI_IDX(bio), bio->bi_phys_segments, BI_SIZE(bio));
+             msg, BI_IDX(bio), bio_segments(bio), BI_SIZE(bio));
 
 #if KFIOC_BIO_HAS_HW_SEGMENTS
     infprint("%s: hw_segments: %x : hw_front_size: %x : hw_back_size %x", msg,
@@ -2612,16 +2632,15 @@ static int kfio_make_request(struct request_queue *queue, struct bio *bio)
     // Split the incomming bio if it has more segments than we have scatter-gather DMA vectors,
     //   and re-submit the remainder to the request queue. blk_queue_split() does all that for us.
     // It appears the kernel quit honoring the blk_queue_max_segments() in about 4.13.
-    if (bio_segments(queue, bio) >= queue_max_segments(queue))
+# if KFIOC_BIO_HAS_BIO_SEGMENTS
+    if (bio_segments(bio) >= queue_max_segments(queue))
+# elif KFIOC_BIO_HAS_BI_PHYS_SEGMENTS
+    if (bio->bi_phys_segments >= queue_max_segments(queue))
+# else
+    if (bio_phys_segments(queue, bio) >= queue_max_segments(queue))
+# endif
     {
         blk_queue_split(queue, &bio);
-    }
-#endif
-
-#if KFIOC_HAS_BIO_COMP_CPU
-    if (bio->bi_comp_cpu == -1)
-    {
-        bio_set_completion_cpu(bio, kfio_current_cpu());
     }
 #endif
 

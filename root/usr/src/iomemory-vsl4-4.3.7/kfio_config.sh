@@ -154,6 +154,7 @@ KFIOC_HAS_BIO_COMP_CPU
 KFIOC_BVEC_KMAP_IRQ_HAS_LONG_FLAGS
 KFIOC_MAKE_REQUEST_FN_VOID
 KFIOC_HAS_BLK_FS_REQUEST
+KFIOC_HAS_BLK_STOP_QUEUE
 KFIOC_REQUEST_HAS_CMD_TYPE
 KFIOC_KMAP_ATOMIC_NEEDS_TYPE
 KFIOC_HAS_BLK_ALLOC_QUEUE_NODE
@@ -178,6 +179,7 @@ KFIOC_HAS_CPUMASK_WEIGHT
 KFIOC_BIO_HAS_USCORE_BI_CNT
 KFIOC_BIO_ENDIO_REMOVED_ERROR
 KFIOC_BIO_ERROR_CHANGED_TO_STATUS
+KFIOC_BIO_HAS_BI_PHYS_SEGMENTS
 KFIOC_BLKMQ_COMPLETE_NO_ERROR
 KFIOC_HAS_BLK_MQ
 KFIOC_MAKE_REQUEST_FN_UINT
@@ -1756,7 +1758,7 @@ KFIOC_HAS_INFLIGHT_RW()
 void kfioc_has_inflight_rw_stats(void)
 {
     struct gendisk gd;
-    gd.part0.in_flight[0] = 0;
+    gd.part0.dkstats.in_flight[0] = 0;
 }
 '
 
@@ -2661,6 +2663,23 @@ void kfioc_test_bio_remaining(void) {
     kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
 }
 
+
+# flag:           KFIOC_BIO_HAS_BI_PHYS_SEGMENTS
+# usage:          0     if bio has no bi_phys_segments
+#                 1     if bio has bi_phys_segments
+KFIOC_BIO_HAS_BI_PHYS_SEGMENTS()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/bio.h>
+void kfioc_test_bio_has_bi_phys_segments(void) {
+	struct bio bio;
+	void *test = &(bio.bi_phys_segments);
+}
+'
+    kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
+}
+
 # flag:           KFIOC_HAS_FILE_INODE_HELPER
 # usage:          undef for automatic selection by kernel version
 #                 0     if the kernel does not have file_inode() helper
@@ -2773,6 +2792,24 @@ void kfioc_blkmq_complete_no_error(void) {
 }
 
 
+# flag:          KFIOC_HAS_BLK_FS_REQUEST
+# usage:         1   Kernel has obsolete blk_fs_request macro
+#                0   It does not
+# kernel version 2.6.36 removed macro.
+KFIOC_HAS_BLK_STOP_QUEUE()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/blkdev.h>
+int kfioc_has_blk_stop_queue(struct request_queue *rq)
+{
+    return blk_stop_queue(rq);
+}
+'
+    kfioc_test "$test_code" KFIOC_HAS_BLK_STOP_QUEUE 1 -Werror
+}
+
+
 # flag:           KFIOC_HAS_BLK_MQ
 # usage:          undef for automatic selection by kernel version
 #                 0     if the kernel doesn't support blk-mq
@@ -2782,8 +2819,8 @@ void kfioc_blkmq_complete_no_error(void) {
 # not work with the driver
 KFIOC_HAS_BLK_MQ()
 {
-    local test_flag="$1"
-    local test_code='
+    local test_flag="$1";
+    local test_code=0;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)
 #include <linux/blk-mq.h>
 
@@ -2802,7 +2839,7 @@ int kfioc_has_blk_mq(void)
 #else
 #error blk-mq was added in 3.13.0 kernel
 #endif
-'
+
     kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
 }
 
