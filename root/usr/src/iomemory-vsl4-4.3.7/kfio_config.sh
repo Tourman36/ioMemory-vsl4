@@ -3,7 +3,7 @@
 #-----------------------------------------------------------------------------
 # Copyright (c) 2006-2014, Fusion-io, Inc.(acquired by SanDisk Corp. 2014)
 # Copyright (c) 2014-2018 SanDisk Corp. and/or all its affiliates. (acquired by Western Digital Corp. 2016)
-# Copyright (c) 2016-2017 Western Digital Technologies, Inc. All rights reserved.
+# Copyright (c) 2016-2019 Western Digital Technologies, Inc. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are met:
@@ -47,8 +47,7 @@ FAILED_TESTS=""
 TIMEOUT_DELTA=${TIMEOUT_DELTA:-120}
 TIMEOUT_TIME=$(($(date "+%s")+$TIMEOUT_DELTA))
 FUSION_DEBUG=0
-NCPUS=$(grep -c ^processor /proc/cpuinfo)
-TEST_RATE=$(expr $NCPUS "*" 2)
+
 
 # These are exit codes from include/sysexits.h
 EX_OK=0
@@ -77,7 +76,6 @@ KFIOC_WORKDATA_PASSED_IN_WORKSTRUCT
 KFIOC_HAS_PCI_ERROR_HANDLERS
 KFIOC_HAS_GLOBAL_REGS_POINTER
 KFIOC_HAS_SYSRQ_KEY_OP_ENABLE_MASK
-KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
 KFIOC_HAS_LINUX_SCATTERLIST_H
 KFIOC_KMEM_CACHE_CREATE_REMOVED_DTOR
 KFIOC_BIO_ENDIO_HAS_BYTES_DONE
@@ -85,19 +83,21 @@ KFIOC_INVALIDATE_BDEV_REMOVED_DESTROY_DIRTY_BUFFERS
 KFIOC_NEEDS_VIRT_TO_PHYS
 KFIOC_HAS_BLK_UNPLUG
 KFIOC_HAS_BLK_DELAY_QUEUE
-KFIOC_SPINLOCK_TYPE_CHECK
 KFIOC_REQUEST_QUEUE_HAS_UNPLUG_FN
 KFIOC_REQUEST_QUEUE_UNPLUG_FN_HAS_EXTRA_BOOL_PARAM
 KFIOC_BACKING_DEV_INFO_HAS_UNPLUG_IO_FN
 KFIOC_HAS_KMEM_CACHE
-KFIOC_HAS_MUTEX_SUBSYSTEM
+KFIOC_HAS_NOTIFIER_FROM_ERRNO
 KFIOC_STRUCT_FILE_HAS_PATH
 KFIOC_HAS_PATH_LOOKUP
 KFIOC_UNREGISTER_BLKDEV_RETURNS_VOID
+KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
 KFIOC_PARTITION_STATS
+KFIOC_HAS_DISK_STATS_NSECS
 KFIOC_HAS_NEW_BLOCK_METHODS
 KFIOC_BLOCK_DEVICE_RELEASE_RETURNS_INT
 KFIOC_HAS_NEW_BLKDEV_METHODS
+KFIOC_HAS_BLKDEV_OLD_BD_SEM
 KFIOC_HAS_COMPAT_IOCTL_METHOD
 KFIOC_COMPAT_IOCTL_RETURNS_LONG
 KFIOC_DISCARD
@@ -122,12 +122,14 @@ KFIOC_HAS_ELV_DEQUEUE_REQUEST
 KFIOC_HAS_BIO_RW_FLAGGED
 KFIOC_HAS_INFLIGHT_RW
 KFIOC_HAS_INFLIGHT_RW_ATOMIC
+KFIOC_PCI_DMA_MAPPING_ERROR_TAKES_DEV
 KFIOC_HAS_BLK_LIMITS_IO_MIN
 KFIOC_HAS_BLK_LIMITS_IO_OPT
 KFIOC_HAS_BLK_QUEUE_MAX_SEGMENTS
 KFIOC_HAS_UNIFIED_BLKTYPES
 KFIOC_HAS_BIO_RW_DISCARD
 KFIOC_HAS_SEPARATE_OP_FLAGS
+KFIOC_HAS_BIO_RW_ATOMIC
 KFIOC_SYSRQ_HANDLER_NEEDS_TTY_STRUCT
 KFIOC_PCI_REQUEST_REGIONS_CONST_CHAR
 KFIOC_FOPS_USE_LOCKED_IOCTL
@@ -139,13 +141,12 @@ KFIOC_BIOSET_CREATE_HAS_THIRD_ARG
 KFIOC_QUEUE_HAS_NONROT_FLAG
 KFIOC_QUEUE_HAS_RANDOM_FLAG
 KFIOC_KBLOCKD_SCHEDULE_HAS_QUEUE_ARG
-KFIOC_TASK_HAS_NR_CPUS_ALLOWED
-KFIOC_TASK_HAS_BOUND_FLAG
+KFIOC_TASK_HAS_NR_CPUS_ALLOWED_DIRECT
+KFIOC_TASK_HAS_NR_CPUS_ALLOWED_RT
 KFIOC_NUMA_MAPS
 KFIOC_PCI_HAS_NUMA_INFO
 KFIOC_CACHE_ALLOC_NODE_TAKES_FLAGS
 KFIOC_NEW_BARRIER_SCHEME
-KFIOC_NEWER_BARRIER_SCHEME
 KFIOC_HAS_QUEUE_FLAG_CLUSTER
 KFIOC_HAS_QUEUE_LIMITS_CLUSTER
 KFIOC_HAS_QUEUE_FLAG_CLEAR_UNLOCKED
@@ -157,15 +158,15 @@ KFIOC_HAS_BLK_STOP_QUEUE
 KFIOC_REQUEST_HAS_CMD_TYPE
 KFIOC_KMAP_ATOMIC_NEEDS_TYPE
 KFIOC_HAS_BLK_ALLOC_QUEUE_NODE
-KFIOC_SGLIST_NEW_API
-KFIOC_HAS_SCSI_QD_CHANGE_FN
-KFIOC_HAS_SCSI_LUNID_UINT
-KFIOC_HAS_PROCFS_PDE_DATA
-KFIOC_HAS_PROC_CREATE_DATA
 KFIOC_HAS_NEW_QUEUECOMMAND_SIGNATURE
 KFIOC_HAS_SCSI_SG_FNS
 KFIOC_HAS_SCSI_SG_COPY_FNS
 KFIOC_HAS_SCSI_RESID_FNS
+KFIOC_HAS_SCSI_QD_CHANGE_FN
+KFIOC_HAS_SCSI_LUNID_UINT
+KFIOC_HAS_PROCFS_PDE_DATA
+KFIOC_HAS_PROC_CREATE_DATA
+KFIOC_SGLIST_NEW_API
 KFIOC_ACPI_EVAL_INT_TAKES_UNSIGNED_LONG_LONG
 KFIOC_BIO_HAS_HW_SEGMENTS
 KFIOC_BIO_HAS_SEG_SIZE
@@ -178,19 +179,25 @@ KFIOC_HAS_CPUMASK_WEIGHT
 KFIOC_BIO_HAS_USCORE_BI_CNT
 KFIOC_BIO_ENDIO_REMOVED_ERROR
 KFIOC_BIO_ERROR_CHANGED_TO_STATUS
+KFIOC_BIO_HAS_BI_PHYS_SEGMENTS
+KFIOC_BLKMQ_COMPLETE_NO_ERROR
+KFIOC_HAS_BLK_MQ
 KFIOC_MAKE_REQUEST_FN_UINT
 KFIOC_GET_USER_PAGES_REQUIRES_TASK
-KFIOC_BARRIER_USES_QUEUE_FLAGS
 KFIOC_GET_USER_PAGES_HAS_GUP_FLAGS
+KFIOC_USE_BLK_QUEUE_FLAGS_FUNCTIONS
+KFIOC_BARRIER_USES_QUEUE_FLAGS
 KFIOC_HAS_HOTPLUG_STATE_MACHINE
 KFIOC_HAS_HOTPLUG_BP_PREPARE_DYN_STATES
 KFIOC_HAS_HOTPLUG_AP_ONLINE_DYN_STATES
 KFIOC_HAS_HOTPLUG_STATES_REMOVAL_BUG
+KFIOC_BLK_MQ_OPS_HAS_MAP_QUEUES
 KFIOC_HAS_PCI_ENABLE_MSIX_EXACT
 KFIOC_ELEVATOR_EXIT_HAS_REQQ_PARAM
 KFIOC_HAS_BLK_RQ_IS_PASSTHROUGH
 KFIOC_HAS_BLK_QUEUE_BOUNCE
 KFIOC_HAS_BLK_QUEUE_SPLIT2
+KFIOC_HAS_ELEVATOR_INIT_EXIT
 "
 
 
@@ -263,7 +270,7 @@ EOF
 }
 
 
-kfioc_close_config()
+kfioc_close_config() 
 {
     cat <<EOF >> "${TMP_OUTPUTFILE}"
 #include <linux/slab.h>
@@ -327,7 +334,7 @@ collect_kfioc_results()
 }
 
 
-fio_create_makefile()
+fio_create_makefile() 
 {
     local kfioc_flag="$1"
     local extra_cflags="${2:-}"
@@ -407,14 +414,9 @@ start_tests()
         # Each test has an absolute time deadline for completion from when it is started.
         # A test can depend on another test so it needs a timeout to decide that the other
         # test may have failed.
+        update_timeout
         start_test $kfioc_test &
         KFIOC_PROCS="$KFIOC_PROCS $kfioc_test:$!"
-        KFIOC_COUNT=$( pgrep -fc "kfio_config.sh -a" )
-        while [ $KFIOC_COUNT -gt $TEST_RATE ]
-        do
-            sleep .1
-            KFIOC_COUNT=$( pgrep -fc "kfio_config.sh -a" )
-        done
     done
 
     printf "Started tests, waiting for completions...\n"
@@ -524,7 +526,7 @@ $1
     local test_dir="${CONFIGDIR}/${kfioc_flag}"
     local result=0
     local license="
-MODULE_LICENSE(\"GPL\");
+MODULE_LICENSE(\"Proprietary\");
 "
 
     mkdir -p "$test_dir"
@@ -644,7 +646,7 @@ void kfioc_test_pci_error_handlers(void) {
     (void)e;
 }
 '
-
+    
     kfioc_test "$test_code" "$test_flag" 1
 }
 
@@ -694,32 +696,6 @@ int kfioc_test_sysrq_key_op(void) {
 }
 
 
-# flag:           KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
-# values:
-#                 0     for older kernels that have read and write data members in disk stats
-#                 1     for kernels that have arrays for disk ops
-#                 rather than individual structures for read/write ops.
-# git commit:     a362357b6cd62643d4dda3b152639303d78473da
-# kernel version: >= 2.6.15
-# comments:       While this is an API change, it doesn't appear to be an ABI
-#                 incompatibility in the structure.
-#                 This changed disk_stats from independent read/write members to arrays length two.
-KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS()
-{
-    local test_flag="$1"
-    local test_code='
-#include <linux/genhd.h>
-
-void kfioc_test_disk_stats(void) {
-    struct disk_stats stat = { .sectors = { [0] = 0, [1] = 0 } };
-    (void)stat;
-}
-'
-
-    kfioc_test "$test_code" "$test_flag" 1
-}
-
-
 # flag:           KFIOC_HAS_LINUX_SCATTERLIST_H
 # values:
 #                 0     for older kernels that had asm/scatterlist.h
@@ -750,12 +726,12 @@ KFIOC_KMEM_CACHE_CREATE_REMOVED_DTOR()
     local test_flag="$1"
     local test_code='
 #include <linux/slab.h>
-
+    
 void kfioc_test_kmem_cache_create(void) {
     kmem_cache_create("foo", 0, 0, 0, NULL);
 }
 '
-
+    
     kfioc_test "$test_code" "$test_flag" 1
 }
 
@@ -917,27 +893,6 @@ void kfioc_test_request_queue_unplug_param(blk_plug_cb_fn cb) {
     kfioc_test "$test_code" "$test_flag" 1
 }
 
-# flag:           KFIOC_QUEUE_LOCK_TYPE_CHECK
-# values:
-#                 0     pre 5.0 has expect a pointer
-#                 1     5.0 and above doesn't
-# git commit:     NA
-# comments:
-KFIOC_SPINLOCK_TYPE_CHECK()
-{
-    local test_flag="$1"
-    local test_code='
-#include <linux/blkdev.h>
-#include <linux/spinlock.h>
-
-void kfioc_spinlock_type_check(void) {
-    struct request_queue *q;
-    spin_lock_irq(q->queue_lock);
-}
-'
-
-    kfioc_test "$test_code" "$test_flag" 1
-}
 
 # flag:           KFIOC_BACKING_DEV_INFO_HAS_UNPLUG_IO_FN
 # values:
@@ -988,26 +943,25 @@ void kfioc_test_kmem_cache(void) {
 }
 
 
-# flag:           KFIOC_HAS_MUTEX_SUBSYSTEM
+# flag:           KFIOC_HAS_NOTIFIER_FROM_ERRNO
 # values:
-#                 0     for older kernels that don't have mutex subsystem (use semaphores)
-#                 1     for kernels with the mutex subsystem
-# git commit:     6053ee3b32e3437e8c1e72687850f436e779bd49
-# comments:       Semaphores can be used in place of mutexs
-KFIOC_HAS_MUTEX_SUBSYSTEM()
+#                 0     for olders kernels that don't pass errnos in notifiers.
+#                 1     for kernels that pass errnos in notifiers.
+# git commit:     fcc5a03ac42564e9e255c1134dda47442289e466
+# comments:
+KFIOC_HAS_NOTIFIER_FROM_ERRNO()
 {
     local test_flag="$1"
     local test_code='
-int kfioc_test_mutex_subsystem(void) {
-    struct mutex lock;
-    mutex_init(&lock);
-    return 0;
+#include <linux/types.h>
+
+int kfioc_test_notifier_from_errno(void) {
+    return notifier_from_errno(0);
 }
 '
 
     kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
 }
-
 
 # flag:           KFIOC_STRUCT_FILE_HAS_PATH
 # values:
@@ -1056,7 +1010,7 @@ void kfioc_has_path_lookup(void)
 #                 0     for kernels that return int from unregister_blkdev()
 #                 1     for newer kernels that return void from unregister_blkdev()
 # git commit:     f4480240f700587c15507b7815e75989b16825b2
-# comments:
+# comments:       
 KFIOC_UNREGISTER_BLKDEV_RETURNS_VOID()
 {
     local test_flag="$1"
@@ -1071,6 +1025,32 @@ int kfioc_test_unregister_blkdev(void) {
 '
 
     kfioc_test "$test_code" "$test_flag" 0
+}
+
+
+# flag:           KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
+# values:
+#                 0     for older kernels that have read and write data members in disk stats
+#                 1     for kernels that have arrays for disk ops
+#                 rather than individual structures for read/write ops.
+# git commit:     a362357b6cd62643d4dda3b152639303d78473da
+# kernel version: >= 2.6.15
+# comments:       While this is an API change, it doesn't appear to be an ABI
+#                 incompatibility in the structure.
+#                 This changed disk_stats from independent read/write members to arrays length two.
+KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/genhd.h>
+
+void kfioc_test_disk_stats(void) {
+    struct disk_stats stat = { .sectors = { [0] = 0, [1] = 0 } };
+    (void)stat;
+}
+'
+
+    kfioc_test "$test_code" "$test_flag" 1
 }
 
 
@@ -1094,6 +1074,30 @@ KFIOC_PARTITION_STATS()
 
     kfioc_test "$test_code" "$test_flag" 1
 }
+
+
+# flag:           KFIOC_HAS_DISK_STATS_NSECS
+# values:
+#                 0     For older kernels with ticks array member in disk_stats
+#                 1     For kernels with newer nsecs array member in disk_stats
+# git commit      b57e99b4b8b0ebdf9707424e7ddc0c392bdc5fe6
+# kernel version: >= 4.19
+# comments:       'ticks' was in jiffies, and new 'nsecs' is in, well, nano seconds.
+#                 We were converting our 'duration' usec's to jiffies, so now we convert usec to nsec.
+KFIOC_HAS_DISK_STATS_NSECS()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/genhd.h>
+
+void kfioc_test_disk_stats_nsec(struct disk_stats* stats)
+{
+    stats->nsecs[0] = 0;
+}
+'
+    kfioc_test "$test_code" "$test_flag" 1
+}
+
 
 # flag:           KFIOC_HAS_NEW_BLOCK_METHODS
 # values:
@@ -1160,6 +1164,26 @@ void kfioc_has_new_blkdev_methods(void)
 }
 
 
+# flag:           KFIOC_HAS_BLKDEV_OLD_BD_SEM
+# values:
+#                 0     for new block open release protected by bd_mutex
+#                 1     for old block open release protected by bd_sem
+# git commit:     c039e3134ae62863bbc8e8429b29e3c43cf21b2a
+# comments:
+KFIOC_HAS_BLKDEV_OLD_BD_SEM()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/fs.h>
+
+void *myfunc(struct block_device *bdev)
+{
+    return &bdev->bd_sem;
+}
+'
+    kfioc_test "$test_code" "$test_flag" 1 "-Werror"
+}
+
 # flag:           KFIOC_HAS_COMPAT_IOCTL_METHOD
 # values:
 #                 0     for old file_operations without compat_ioctl
@@ -1220,11 +1244,9 @@ KFIOC_DISCARD()
     local test_flag="$1"
     local test_code='
 #include <linux/blkdev.h>
-
-
-void kfioc_test_blk_queue_set_discard(void) {
-	int i;
-	i = QUEUE_FLAG_DISCARD;
+int kfioc_test_blk_queue_set_discard(void)
+{
+	return QUEUE_FLAG_DISCARD;
 }
 '
 
@@ -1393,26 +1415,29 @@ void kfioc_hew_barrier_scheme(void)
     kfioc_test "$test_code" KFIOC_NEW_BARRIER_SCHEME 1 -Werror
 }
 
-# flag:          KFIOC_NEW_BARRIER_SCHEME
-# usage:         1   Kernel uses the new barrier scheme
-#                0   It does not
-KFIOC_NEWER_BARRIER_SCHEME()
+# flag:          KFIOC_USE_BLK_QUEUE_FLAGS_FUNCTIONS
+# usage:         1   Kernel uses newer blk_queue_flag_set/clear functions.
+#                0   It uses older queue_flag_set/clear functions.
+# comments:       Changed in kernel 4.18 so that the queue lock is taken when manipulating queue flags.
+KFIOC_USE_BLK_QUEUE_FLAGS_FUNCTIONS()
 {
     local test_flag="$1"
     local test_code='
 #include <linux/blkdev.h>
-void kfioc_hew_barrier_scheme(void)
+void kfioc_use_blk_queue_functions(void)
 {
-    struct request_queue q;
-    q.queue_flags = REQ_PREFLUSH | REQ_FUA;
+    struct request_queue *rq = NULL;
+    int flags = 1;
+    blk_queue_flag_set(flags, rq);
 }
 '
-    kfioc_test "$test_code" KFIOC_NEWER_BARRIER_SCHEME 1 -Werror
+    kfioc_test "$test_code" KFIOC_USE_BLK_QUEUE_FLAGS_FUNCTIONS 1 -Werror
 }
 
 # flag:          KFIOC_BARRIER_USES_QUEUE_FLAGS
 # usage:         1   Kernel uses queue_flags field
 #                0   It does not
+# What?? Should this test be testing for the queue_flags field, use of queue_flags_xxx() functions, or existance of QUEUE_FLAG_WC???
 KFIOC_BARRIER_USES_QUEUE_FLAGS()
 {
     local test_flag="$1"
@@ -1445,25 +1470,9 @@ int kfioc_has_blk_fs_request(struct request *req)
     return blk_fs_request(req);
 }
 '
-    kfioc_test "$test_code" KFIOC_HAS_BLK_FS_REQUEST 1 -Werror
+    kfioc_test "$test_code" "$test_flag" 1 -Werror
 }
 
-# flag:          KFIOC_HAS_BLK_FS_REQUEST
-# usage:         1   Kernel has obsolete blk_fs_request macro
-#                0   It does not
-# kernel version 2.6.36 removed macro.
-KFIOC_HAS_BLK_STOP_QUEUE()
-{
-    local test_flag="$1"
-    local test_code='
-#include <linux/blkdev.h>
-int kfioc_has_blk_stop_queue(struct request_queue *rq)
-{
-    return blk_stop_queue(rq);
-}
-'
-    kfioc_test "$test_code" KFIOC_HAS_BLK_STOP_QUEUE 1 -Werror
-}
 
 # flag:          KFIOC_REQUEST_HAS_CMD_TYPE
 # usage:         1   Kernel has older cmd_type element (and REQ_TYPE_FS)
@@ -1507,7 +1516,7 @@ KFIOC_HAS_SPIN_LOCK_IRQSAVE_NESTED()
 #error spin_lock_irqsave_nested is missing
 #endif
 '
-
+    
     kfioc_test "$test_code" "$test_flag" 1
 }
 
@@ -1538,7 +1547,7 @@ module_param_array(test, charp, NULL, 0);
 #                 1     if the kernel does not have an "owner" data member in "struct proc_dir_entry"
 # git commit:     99b76233803beab302123d243eea9e41149804f3
 # kernel version: < 2.6.30
-KFIOC_OWNER_IN_STRUCT_PROC_DIR_ENTRY()
+KFIOC_OWNER_IN_STRUCT_PROC_DIR_ENTRY() 
 {
     local test_flag="$1"
     local test_code='
@@ -1549,7 +1558,7 @@ void kfioc_owner_in_struct_proc_dir_entry(void) {
     (void)dentry;
 }
 '
-
+    
     kfioc_test "$test_code" "$test_flag" 1
 }
 
@@ -1567,7 +1576,7 @@ KFIOC_CONFIG_PREEMPT_RT()
 #error Not running a PREEMPT_RT kernel
 #endif
 '
-
+    
     kfioc_test "$test_code" "$test_flag" 1
 }
 
@@ -1594,7 +1603,7 @@ KFIOC_CONFIG_TREE_PREEMPT_RCU()
 # usage:          undef for automatic selection by kernel version
 #                 0     if the kernel does not have the blk_queue_hardsect_size function
 #                 1     if the kernel has the function
-# git commit:
+# git commit:     
 # kernel version: < 2.6.31
 KFIOC_HAS_BLK_QUEUE_HARDSECT_SIZE()
 {
@@ -1637,7 +1646,7 @@ void kfioc_has_end_request(void){
 #                 0     if the kernel version is between 2.5.24 and 2.6.31
 #                           OR the blk_complete_request() function does not exist exactly as specified below.
 #                 1     if the kernel has the function
-# git commit:
+# git commit:     
 # kernel version: > 2.6.24 and < 2.6.31
 KFIOC_USE_IO_SCHED()
 {
@@ -1661,9 +1670,30 @@ void kfioc_use_io_sched(void) {
     kfioc_test "$test_code" KFIOC_USE_IO_SCHED 1 -Werror-implicit-function-declaration
 }
 
+
+# flag:           KFIOC_HAS_ELEVATOR_INIT_EXIT
+# usage:          undef for automatic selection by kernel version
+#                 0     if the kernel does not export elevator_init/elevator_exit
+#                 1     if the kernel has the functions
+# git commit:     a8a275c9c2fb6bc9b45ad3e4187469726e2af7d1
+KFIOC_HAS_ELEVATOR_INIT_EXIT()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/blkdev.h>
+void kfioc_has_elevator_init_exit(void) {
+    struct request_queue *q;
+    elevator_init(q, "scheduler");
+}
+'
+
+    kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
+}
+
+
 # flag:           KFIOC_USE_NEW_IO_SCHED
 # usage:          undef for automatic selection by kernel version
-#                 0     if the kernel does not have the blk_queue_hardsect_size function
+#                 0     if the kernel does not have the blk_fetch_request() function
 #                 1     if the kernel has the function
 # git commit:     2e46e8b27aa57c6bd34b3102b40ee4d0144b4fab
 # kernel version: > 2.6.24 and < 2.6.31
@@ -1682,7 +1712,8 @@ void kfioc_has_new_sched(void) {
 
 # flag:           KFIOC_HAS_ELV_DEQUEUE_REQUEST
 # usage:          undef for automatic selection by kernel version
-#                 0     if the kernel does not have the blk_queue_hardsect_size function
+#                 0     if the kernel version is greater than 2.6.24,
+#                           ostensibly because it doesn't have elv_dequeue_request(), or it is GPL.
 #                 1     if the kernel has the function
 KFIOC_HAS_ELV_DEQUEUE_REQUEST()
 {
@@ -1714,7 +1745,7 @@ void kfioc_has_bio_rw_flagged(void)
 
     kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
 }
-
+ 
 
 # flag:           KFIOC_HAS_INFLIGHT_RW
 #                 1     if the kernel has part0.in_flight[rw]
@@ -1727,7 +1758,7 @@ KFIOC_HAS_INFLIGHT_RW()
 void kfioc_has_inflight_rw_stats(void)
 {
     struct gendisk gd;
-    gd.part0.in_flight[0] = 0;
+    gd.part0.dkstats.in_flight[0] = 0;
 }
 '
 
@@ -1750,7 +1781,24 @@ void kfioc_has_inflight_rw_atomic(void)
 }
 '
 
-    kfioc_test "$test_code" "$test_flag" 1 -Wframe-larger-than=2048
+    kfioc_test "$test_code" "$test_flag" 1 -Werror
+}
+
+# flag:           KFIOC_PCI_DMA_MAPPING_ERROR_TAKES_DEV
+#                 1     if pci_dma_mapping_error() takes the device as the first parameter.
+#                 0     if not
+KFIOC_PCI_DMA_MAPPING_ERROR_TAKES_DEV()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/pci.h>
+int kfioc_pci_dma_mapping_error_takes_dev(void)
+{
+    return pci_dma_mapping_error(NULL, (dma_addr_t)0);
+}
+'
+
+    kfioc_test "$test_code" "$test_flag" 1 -Werror
 }
 
 # flag:           KFIOC_HAS_BLK_LIMITS_IO_MIN
@@ -1860,6 +1908,23 @@ void foo(void)
     kfioc_test "$test_code" "$test_flag" 1
 }
 
+# flag:           KFIOC_HAS_BIO_RW_ATOMIC
+#                 1     if the kernel supports has a bio ATOMIC flag
+#                 0     if the kernel does not
+KFIOC_HAS_BIO_RW_ATOMIC()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/bio.h>
+void foo(void)
+{
+    unsigned long flags = 1 << BIO_RW_ATOMIC;
+}
+'
+
+    kfioc_test "$test_code" "$test_flag" 1
+}
+
 
 # flag:           KFIOC_SYSRQ_HANDLER_NEEDS_TTY_STRUCT
 # usage:          undef for automatic selection by kernel version
@@ -1897,8 +1962,8 @@ void foo(void)
 }
 
 # flag:           KFIOC_HAS_RQ_POS_BYTES
-#                 1     if the driver should use
-#                 0     if the driver should use
+#                 1     if the driver should use 
+#                 0     if the driver should use 
 #                 Change introduced in 2e46e8b27aa57c6bd34b3102b40ee4d0144b4fab
 KFIOC_HAS_RQ_POS_BYTES()
 {
@@ -1917,8 +1982,8 @@ void foo(void)
 }
 
 # flag:           KFIOC_HAS_RQ_IS_SYNC
-#                 1     if the driver should use
-#                 0     if the driver should use
+#                 1     if the driver should use 
+#                 0     if the driver should use 
 #                 Change introduced in 1faa16d22877f4839bd433547d770c676d1d964c
 KFIOC_HAS_RQ_IS_SYNC()
 {
@@ -1936,8 +2001,8 @@ void foo(void)
 }
 
 # flag:           KFIOC_HAS_RQ_FOR_EACH_BIO
-#                 1     if the driver should use
-#                 0     if the driver should use
+#                 1     if the driver should use 
+#                 0     if the driver should use 
 #                 Change introduced in 5705f7021748a69d84d6567e68e8851dab551464
 KFIOC_HAS_RQ_FOR_EACH_BIO()
 {
@@ -1973,8 +2038,8 @@ int foo(void)
     kfioc_test "$test_code" "$test_flag" 1 -Werror
 }
 # flag:           KFIOC_BIOSET_CREATE_HAS_THIRD_ARG
-#                 1     if the driver should use
-#                 0     if the driver should use
+#                 1     if the driver should use 
+#                 0     if the driver should use 
 KFIOC_BIOSET_CREATE_HAS_THIRD_ARG()
 {
     local test_flag="$1"
@@ -2012,10 +2077,9 @@ KFIOC_QUEUE_HAS_NONROT_FLAG()
     local test_flag="$1"
     local test_code='
 #include <linux/blkdev.h>
-void kfioc_check_nonrot_flag(void)
+int kfioc_check_nonrot_flag(void)
 {
-    int i;
-    i = QUEUE_FLAG_NONROT;
+    return QUEUE_FLAG_NONROT;
 }
 '
     kfioc_test "$test_code" KFIOC_QUEUE_HAS_NONROT_FLAG 1 -Werror
@@ -2029,10 +2093,9 @@ KFIOC_QUEUE_HAS_RANDOM_FLAG()
     local test_flag="$1"
     local test_code='
 #include <linux/blkdev.h>
-void kfioc_check_random_flag(void)
+int kfioc_check_random_flag(void)
 {
-    int i;
-    i = QUEUE_FLAG_ADD_RANDOM;
+    return QUEUE_FLAG_ADD_RANDOM;
 }
 '
     kfioc_test "$test_code" KFIOC_QUEUE_HAS_RANDOM_FLAG 1 -Werror
@@ -2054,10 +2117,27 @@ void kfioc_check_kblockd_queue_arg(void)
     kfioc_test "$test_code" KFIOC_KBLOCKD_SCHEDULE_HAS_QUEUE_ARG 1 -Werror
 }
 
-# flag:          KFIOC_TASK_HAS_NR_CPUS_ALLOWED
+# flag:          KFIOC_TASK_HAS_NR_CPUS_ALLOWED_DIRECT
 # usage:         1   Task struct has a member for CPUs allowed count
 #                0   It does not
-KFIOC_TASK_HAS_NR_CPUS_ALLOWED()
+KFIOC_TASK_HAS_NR_CPUS_ALLOWED_DIRECT()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/sched.h>
+void kfioc_check_task_has_nr_cpus_allowed(void)
+{
+    struct task_struct *tsk = NULL;
+    tsk->nr_cpus_allowed = 0;
+}
+'
+    kfioc_test "$test_code" "$test_flag" 1 -Werror
+}
+
+# flag:          KFIOC_TASK_HAS_NR_CPUS_ALLOWED
+# usage:         1   Task struct has a member for CPUs allowed count in rt member
+#                0   It does not
+KFIOC_TASK_HAS_NR_CPUS_ALLOWED_RT()
 {
     local test_flag="$1"
     local test_code='
@@ -2066,23 +2146,6 @@ void kfioc_check_task_has_nr_cpus_allowed(void)
 {
     struct task_struct *tsk = NULL;
     tsk->rt.nr_cpus_allowed = 0;
-}
-'
-    kfioc_test "$test_code" "$test_flag" 1 -Werror
-}
-
-# flag:          KFIOC_TASK_HAS_BOUND_FLAG
-# usage:         1   Task struct PF_THREAD_BOUND flag for affinity
-#                0   It does not
-KFIOC_TASK_HAS_BOUND_FLAG()
-{
-    local test_flag="$1"
-    local test_code='
-#include <linux/sched.h>
-void kfioc_check_task_has_bound_flag(void)
-{
-    struct task_struct *tsk = NULL;
-    tsk->flags |= PF_THREAD_BOUND;
 }
 '
     kfioc_test "$test_code" "$test_flag" 1 -Werror
@@ -2300,49 +2363,11 @@ void kfioc_has_blk_alloc_queue_node(void)
 }
 
 
-# flag:           KFIOC_HAS_PROCFS_PDE_DATA
-# usage:          undef for automatic selection by kernel version
-#                 0     if the kernel does not have the PDE_DATA helper
-#                 1     if the kernel has the PDE_DATA function
-# git commit:     d9dda78bad879595d8c4220a067fc029d6484a16
-# kernel version: >= 3.10
-KFIOC_HAS_PROCFS_PDE_DATA()
-{
-    local test_flag="$1"
-    local test_code='
-#include <linux/proc_fs.h>
-
-void *kfioc_has_procfs_pde_data(struct inode *inode)
-{
-    return PDE_DATA(inode);
-}
-'
-    kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
-}
-
-# flag:           KFIOC_HAS_PROC_CREATE_DATA
-# usage:          undef for automatic selection by kernel version
-#                 0     if the kernel does not have the proc_create_data function
-#                 1     if the kernel has the function
-# git commit:     59b7435149eab2dd06dd678742faff6049cb655f
-KFIOC_HAS_PROC_CREATE_DATA()
-{
-    local test_flag="$1"
-    local test_code='
-#include <linux/proc_fs.h>
-
-void *kfioc_has_proc_create_data(struct inode *inode)
-{
-    return proc_create_data(NULL, 0, NULL, NULL, NULL);
-}
-'
-    kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
-}
-
 # flag:           KFIOC_HAS_NEW_QUEUECOMMAND_SIGNATURE
 # values:
 #                 0     for old one with the done function pointer argument
 #                 1     for new one
+# comments:
 KFIOC_HAS_NEW_QUEUECOMMAND_SIGNATURE()
 {
     local test_flag="$1"
@@ -2463,6 +2488,45 @@ void kfioc_has_scsi_resid_fns(void)
 }
 '
 
+    kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
+}
+
+# flag:           KFIOC_HAS_PROCFS_PDE_DATA
+# usage:          undef for automatic selection by kernel version
+#                 0     if the kernel does not have the PDE_DATA helper
+#                 1     if the kernel has the PDE_DATA function
+# git commit:     d9dda78bad879595d8c4220a067fc029d6484a16
+# kernel version: >= 3.10
+KFIOC_HAS_PROCFS_PDE_DATA()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/proc_fs.h>
+
+void *kfioc_has_procfs_pde_data(struct inode *inode)
+{
+    return PDE_DATA(inode);
+}
+'
+    kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
+}
+
+# flag:           KFIOC_HAS_PROC_CREATE_DATA
+# usage:          undef for automatic selection by kernel version
+#                 0     if the kernel does not have the proc_create_data function
+#                 1     if the kernel has the function
+# git commit:     59b7435149eab2dd06dd678742faff6049cb655f
+KFIOC_HAS_PROC_CREATE_DATA()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/proc_fs.h>
+
+void *kfioc_has_proc_create_data(struct inode *inode)
+{
+    return proc_create_data(NULL, 0, NULL, NULL, NULL);
+}
+'
     kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
 }
 
@@ -2599,6 +2663,23 @@ void kfioc_test_bio_remaining(void) {
     kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
 }
 
+
+# flag:           KFIOC_BIO_HAS_BI_PHYS_SEGMENTS
+# usage:          0     if bio has no bi_phys_segments
+#                 1     if bio has bi_phys_segments
+KFIOC_BIO_HAS_BI_PHYS_SEGMENTS()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/bio.h>
+void kfioc_test_bio_has_bi_phys_segments(void) {
+	struct bio bio;
+	void *test = &(bio.bi_phys_segments);
+}
+'
+    kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
+}
+
 # flag:           KFIOC_HAS_FILE_INODE_HELPER
 # usage:          undef for automatic selection by kernel version
 #                 0     if the kernel does not have file_inode() helper
@@ -2692,6 +2773,76 @@ void kfioc_bio_error_changed_to_status(struct bio* bi)
     kfioc_test "$test_code" "$test_flag" 1
 }
 
+
+# flag:           KFIOC_BLKMQ_COMPLETE_NO_ERROR
+# usage:          1 if error argument does not exists, 0 if has error parameter
+# kernel version: v4.1-rc1
+# enb: Removed between kernel 3.13.11 and 3.14 (in one of the 3.14.rcX versions).
+KFIOC_BLKMQ_COMPLETE_NO_ERROR()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/blk-mq.h>
+
+void kfioc_blkmq_complete_no_error(void) {
+    blk_mq_complete_request(NULL);
+}
+'
+    kfioc_test "$test_code" "$test_flag" 1
+}
+
+
+# flag:          KFIOC_HAS_BLK_FS_REQUEST
+# usage:         1   Kernel has obsolete blk_fs_request macro
+#                0   It does not
+# kernel version 2.6.36 removed macro.
+KFIOC_HAS_BLK_STOP_QUEUE()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/blkdev.h>
+int kfioc_has_blk_stop_queue(struct request_queue *rq)
+{
+    return blk_stop_queue(rq);
+}
+'
+    kfioc_test "$test_code" KFIOC_HAS_BLK_STOP_QUEUE 1 -Werror
+}
+
+
+# flag:           KFIOC_HAS_BLK_MQ
+# usage:          undef for automatic selection by kernel version
+#                 0     if the kernel doesn't support blk-mq
+#                 1     if the kernel has blk-mq
+# kernel version: v4.1-rc1
+# A popular distro has backported blk-mq.h into 3.10.0 kernel in a way that does
+# not work with the driver
+KFIOC_HAS_BLK_MQ()
+{
+    local test_flag="$1";
+    local test_code=0;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)
+#include <linux/blk-mq.h>
+
+int kfioc_has_blk_mq(void)
+{
+    struct blk_mq_tag_set tag_set;
+    tag_set.nr_hw_queues = 1;
+    tag_set.cmd_size = 0;
+    if (!blk_mq_alloc_tag_set(&tag_set))
+    {
+        blk_mq_init_queue(&tag_set);
+    }
+    blk_mq_run_hw_queues(NULL,0);
+    return 1;
+}
+#else
+#error blk-mq was added in 3.13.0 kernel
+#endif
+
+    kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
+}
+
 # flag:          KFIOC_MAKE_REQUEST_FN_UINT
 # usage:         1   make_request_fn returns unsigned int
 #                0   It returns 0/1 for done/remap
@@ -2712,24 +2863,22 @@ void test_make_request_fn(void)
     kfioc_test "$test_code" "$test_flag" 1 -Werror
 }
 
-# flag:           KFIOC_GET_USER_PAGES_REQUIRES_TASK
+# flag:           KFIOC_uGET_USER_PAGES_REQUIRES_TASK
 # usage:          1   get_user_pages has `struct task_struct *tsk, struct mm_struct *mm` params
-#                 0   these params are deprecated
+#                 0   these params are removed.
 # git commit:     c12d2da56d0e07d230968ee2305aaa86b93a6832 <- removed "old" API
 #                 cde70140fed8429acf7a14e2e2cbd3e329036653 <- started the API switch
 # kernel version: v4.6-rc2
 KFIOC_GET_USER_PAGES_REQUIRES_TASK()
 {
     local test_flag="$1"
-    local test_code='
-#include <linux/mm.h>
+    local result=0
 
-void test_get_user_pages(void)
-{
-    get_user_pages(NULL, NULL, 0, 1, 1, 0, NULL, NULL);
-}
-'
-    kfioc_test "$test_code" "$test_flag" 1 -Werror
+    grep -E "(long|int) get_user_pages\(" "$KERNELSOURCEDIR/include/linux/mm.h" | grep "struct task_struct" || result=$?
+    result=$((! $result))
+
+    set_kfioc_status "$test_flag" 0 exit
+    set_kfioc_status "$test_flag" "$result" result
 }
 
 # flag:            KFIOC_GET_USER_PAGES_HAS_GUP_FLAGS
@@ -2741,20 +2890,13 @@ void test_get_user_pages(void)
 KFIOC_GET_USER_PAGES_HAS_GUP_FLAGS()
 {
     local test_flag="$1"
-    local test_code='
-#include <linux/mm.h>
-#include <linux/version.h>
+    local result=0
 
-void test_get_user_pages(void)
-{
-    int start = 0;
-    int num_pages = 1;
-    int flags = FOLL_WRITE | FOLL_FORCE;
+    grep -A3 -E "(long|int) get_user_pages\(" "$KERNELSOURCEDIR/include/linux/mm.h" | grep "gup_flags" || result=$?
+    result=$((! $result))
 
-    get_user_pages(start, num_pages, flags, NULL, NULL);
-}
-'
-    kfioc_test "$test_code" "$test_flag" 1 -Werror
+    set_kfioc_status "$test_flag" 0 exit
+    set_kfioc_status "$test_flag" "$result" result
 }
 
 
@@ -2846,6 +2988,29 @@ KFIOC_HAS_HOTPLUG_STATES_REMOVAL_BUG()
 #endif
 '
     kfioc_test "$test_code" "$test_flag" 0 -Werror
+}
+
+
+# flag:            KFIOC_BLK_MQ_OPS_HAS_MAP_QUEUES
+# usage:           1 blk_mq_ops has a 'map_queues' field
+#                  0 blk_mq_ops has the older 'map_queue' field
+# git commit:      da695ba236b993f07a540d35c17f271ef08c89f3 <- added new API
+#                  xxx <- removed old API
+# kernel version: v4.10
+KFIOC_BLK_MQ_OPS_HAS_MAP_QUEUES()
+{
+    local test_flag="$1"
+    local test_code='
+#include <linux/blk-mq.h>
+
+void test_blk_map_queues(void)
+{
+    struct blk_mq_ops ops;
+
+    ops.map_queues = NULL;
+}
+'
+    kfioc_test "$test_code" "$test_flag" 1 -Werror
 }
 
 
@@ -3040,7 +3205,6 @@ Detecting Kernel Flags
 Config dir         : ${CONFIGDIR}
 Output file        : ${OUTPUTFILE}
 Kernel output dir  : ${KERNELDIR}
-Kernel source dir  : ${KERNELSOURCEDIR}
 EOF
 
     # Check to make sure the kernel build directory exists
@@ -3050,14 +3214,25 @@ EOF
         exit $EX_OSFILE;
     fi
 
-    # Check to make sure the kernel build directory exists
-    if [ ! -d "${KERNELSOURCEDIR:=${KERNELDIR}}" ]; then
-        echo "Unable to locate the kernel source dir '$KERNELSOURCEDIR'"
+    # For some reason we used to unilaterally set KERNELSOURCEDIR to KERNELDIR. Maybe because they were the same in many
+    #  cases and it didn't seem to matter, the way we used them.
+    # With CRT-1114 however, we had to change the way we detect the API changes to get_user_pages(), which requires
+    #  that the KERNELDIR point to the kernel build directory and the KERNELSOURCEDIR point to...well, the kernel source.
+    # Attempt to correctly set the KERNELSOURCEDIR by checking for the existence of a file. (mm.h because, why not?).
+    INCLUDEFILEPATH="include/linux/mm.h"
+    if [ ! -f "$KERNELSOURCEDIR/$INCLUDEFILEPATH" ]; then
+        KERNELSOURCEDIR=${KERNELDIR}
+    fi
+
+    cat <<EOF
+Kernel source dir  : ${KERNELSOURCEDIR}
+EOF
+    # Check again to make sure the kernel souce directory and a file exists
+    if [ ! -f "$KERNELSOURCEDIR/$INCLUDEFILEPATH" ]; then
+        echo "Unable to locate the kernel source in '$KERNELSOURCEDIR'"
         echo "Please make sure your kernel development package is installed."
         exit $EX_OSFILE;
     fi
-
-    . ./kfio_config_add.sh
 
     start_tests
 
