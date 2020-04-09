@@ -3234,6 +3234,8 @@ EOF
         exit $EX_OSFILE;
     fi
 
+    . ./kfio_config_add.sh
+
     start_tests
 
     finished || rc=$?
