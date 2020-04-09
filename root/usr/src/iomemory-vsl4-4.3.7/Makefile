@@ -34,7 +34,7 @@ CFLAGS = -I$(shell pwd)/include -DBUILDING_MODULE -DLINUX_IO_SCHED -Wall
 KERNEL_SRC = /lib/modules/$(KERNELVER)/source
 
 # Set PORT_NO_WERROR=0 to compile without -Werror compilation flag
-ifneq ($(PORT_NO_WERROR),1)
+ifneq ($(PORT_NO_WERROR),0)
     CFLAGS += -Werror
 endif
 
