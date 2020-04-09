@@ -2820,7 +2820,7 @@ int kfioc_has_blk_stop_queue(struct request_queue *rq)
 KFIOC_HAS_BLK_MQ()
 {
     local test_flag="$1";
-    local test_code=0;
+    local test_code=0'
 #if LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)
 #include <linux/blk-mq.h>
 
@@ -2839,7 +2839,7 @@ int kfioc_has_blk_mq(void)
 #else
 #error blk-mq was added in 3.13.0 kernel
 #endif
-
+'
     kfioc_test "$test_code" "$test_flag" 1 -Werror-implicit-function-declaration
 }
 
