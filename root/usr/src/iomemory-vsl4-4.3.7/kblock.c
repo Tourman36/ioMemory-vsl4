@@ -1454,7 +1454,7 @@ void linux_bdev_update_inflight(struct fio_bdev *bdev, int rw, int in_flight)
     if (disk->use_workqueue != USE_QUEUE_RQ && disk->use_workqueue != USE_QUEUE_MQ)
     {
 #if KFIOC_PARTITION_STATS
-#if KFIOC_HAS_INFLIGHT_RW || KFIOC_HAS_INFLIGHT_RW_ATOMIC
+#   if KFIOC_HAS_INFLIGHT_RW || KFIOC_HAS_INFLIGHT_RW_ATOMIC
         // In the Linux kernel the direction isn't explicitly defined, however
         // in linux/bio.h, you'll notice that its referenced as 1 for write and 0
         // for read.
@@ -1463,17 +1463,19 @@ void linux_bdev_update_inflight(struct fio_bdev *bdev, int rw, int in_flight)
         if (rw == BIO_DIR_WRITE)
             dir = 1;
 
-#if KFIOC_HAS_INFLIGHT_RW_ATOMIC
-        atomic_set(&gd->part0.in_flight[dir], in_flight);
-#else
-        gd->part0.dkstats.in_flight[dir] = in_flight;
-#endif
-#else
+#       if KFIOC_HAS_INFLIGHT_RW_ATOMIC
+            atomic_set(&gd->part0.in_flight[dir], in_flight);
+#       else
+            gd->part0.in_flight[dir] = in_flight;
+#       endif /* KFIOC_HAS_INFLIGHT_RW_ATOMIC */
+#   elif KFIOC_X_PART0_HAS_IN_FLIGHT
         gd->part0.in_flight = in_flight;
-#endif
+#   else
+        part_stat_set_all(&gd->part0, in_flight);
+#   endif /* KFIOC_HAS_INFLIGHT_RW */
 #else
         gd->in_flight = in_flight;
-#endif
+#endif /* KFIOC_PARTITION_STATS */
     }
 }
 
@@ -2343,7 +2345,11 @@ static struct request_queue *kfio_alloc_queue(struct kfio_disk *dp,
     {
         rq->queuedata = dp;
         blk_queue_make_request(rq, kfio_make_request);
-        rq->queue_lock = (spinlock_t)dp->queue_lock;
+#if KFIOC_X_REQUEST_QUEUE_HAS_QUEUE_LOCK_POINTER
+        rq->queue_lock = (spinlock_t*)dp->queue_lock;
+#else
+        memcpy(&dp->queue_lock, &rq->queue_lock, sizeof(dp->queue_lock));
+#endif
 #if KFIOC_REQUEST_QUEUE_HAS_UNPLUG_FN
         rq->unplug_fn = kfio_unplug;
 #endif
