@@ -27,6 +27,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //-----------------------------------------------------------------------------
 #if !defined (__linux__)
+#include <fio/common/env.h> // for debugging purposes
 #error "This file supports Linux only"
 #endif
 

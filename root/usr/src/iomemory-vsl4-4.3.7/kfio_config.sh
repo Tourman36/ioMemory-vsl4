@@ -2819,8 +2819,8 @@ int kfioc_has_blk_stop_queue(struct request_queue *rq)
 # not work with the driver
 KFIOC_HAS_BLK_MQ()
 {
-    local test_flag="$1";
-    local test_code=0'
+    local test_flag="$1"
+    local test_code='
 #if LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)
 #include <linux/blk-mq.h>
 

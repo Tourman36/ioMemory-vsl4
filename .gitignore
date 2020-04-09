@@ -11,3 +11,4 @@ linux/uapi/Kbuild
 .vs/VSWorkspaceState.json
 linux/asm-generic/Kbuild
 linux/uapi/asm-generic/Kbuild
+/.vs
