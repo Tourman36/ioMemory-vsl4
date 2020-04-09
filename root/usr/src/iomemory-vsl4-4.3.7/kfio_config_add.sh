@@ -23,7 +23,7 @@ KFIOC_X_HAS_DISK_STATS_NSECS
 KFIOC_X_HAS_COARSE_REAL_TS
 KFIOC_X_HAS_ELEVATOR_INIT
 KFIOC_X_PART0_HAS_IN_FLIGHT
-KFIOC_X_REQUEST_HAS_SPECIAL
+KFIOC_X_REQUEST_HAS_VOID_SPECIAL
 "
 
 ##
@@ -371,19 +371,20 @@ void kfioc_test_part0_has_in_flight(void) {
     kfioc_test "$test_code" "$test_flag" 1
 }
 
-# flag:           KFIOC_X_REQUEST_HAS_SPECIAL
+
+# flag:           KFIOC_X_REQUEST_HAS_VOID_SPECIAL
 # values:
-#                 0     request::special from Kernels 5.0 and later
+#                 0     request::special from Kernel 5.0 and later
 #                 1     pre 5.0 kernels have a void* in struct request that can be used by drivers.
 # git commit:     https://github.com/torvalds/linux/commit/69ed175c195595c73901e18366cb0ebeaeb68b8a
 # comments:
-KFIOC_X_REQUEST_HAS_SPECIAL()
+KFIOC_X_REQUEST_HAS_VOID_SPECIAL()
 {
     local test_flag="$1"
     local test_code='
 #include <linux/blkdev.h>
 
-void kfioc_test_request_has_special(void) {
+void kfioc_test_request_has_void_special(void) {
     spinlock_t *l;
     struct request *req;
     req->special = l;

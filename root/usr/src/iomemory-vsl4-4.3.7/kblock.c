@@ -625,11 +625,16 @@ static int fio_queue_rq(struct blk_mq_hw_ctx *hctx, const struct blk_mq_queue_da
 #endif
 {
     struct kfio_disk *disk = hctx->driver_data;
-    struct request *req = bd->rq;
+    struct request* req = bd->rq;
     kfio_bio_t *fbio;
     int rc;
 
+#if KFIOC_X_REQUEST_HAS_VOID_SPECIAL
     fbio = req->special;
+#else
+    kassert(req->q); //can request_queue be NULL??
+    fbio = req->q->queuedata;
+#endif
     if (!fbio)
     {
         fbio = kfio_request_to_bio(disk, req, false);
@@ -652,7 +657,11 @@ static int fio_queue_rq(struct blk_mq_hw_ctx *hctx, const struct blk_mq_queue_da
              * "busy error" conditions. Store the prepped part
              * for faster retry, and exit.
              */
-            req->special = fbio;
+            #if KFIOC_X_REQUEST_HAS_VOID_SPECIAL
+                req->special = fbio;
+            #else
+                req->q->queuedata = fbio;
+            #endif
             goto retry;
         }
         /*
@@ -1102,13 +1111,16 @@ static void kfio_kill_requests(struct request_queue *q)
 
         // If special is Not NULL this request was retried and hence the bio associated
         // with the request stored in special might not be freed.
+#   if KFIOC_X_REQUEST_HAS_VOID_SPECIAL
         if (req->special != NULL)
-        {
             kfio_bio_free(req->special);
-        }
+#   else
+        if(req->q->queuedata != NULL)
+            kfio_bio_free(req->q->queuedata);
+#   endif
         kfio_end_request(req, -EIO);
     }
-#endif
+#endif /* KFIOC_USE_IO_SCHED */
 }
 
 static int linux_bdev_hide_disk(struct fio_bdev *bdev, uint32_t opflags)
@@ -2873,7 +2885,11 @@ static void kfio_blk_complete_request(struct request *req, int error)
      * Add this completion entry atomically to the shared completion
      * list.
      */
-    entry = (struct fio_atomic_list *) &req->special;
+#   if KFIOC_X_REQUEST_HAS_VOID_SPECIAL
+        entry = (struct fio_atomic_list *) &req->special;
+#   else
+        entry = (struct fio_atomic_list*) &req->q->queuedata;
+#endif
     fusion_atomic_list_init(entry);
     fusion_atomic_list_add(entry, &dp->comp_list);
 
@@ -3380,7 +3396,11 @@ static void kfio_do_request(struct request_queue *q)
                 // If the OS ever hands us a request with 'special' set, we'll blindly
                 // trust that it is a fbio pointer. That would be bad. Hence the
                 // following assert.
+#           if KFIOC_X_REQUEST_HAS_VOID_SPECIAL
                 kassert(req->special == 0);
+#           else
+                kassert(req->q->queuedata == 0); // probably don't need this check
+#endif
 
 #if KFIOC_HAS_BLK_FS_REQUEST
                 if (blk_fs_request(req))
@@ -3440,7 +3460,11 @@ static void kfio_do_request(struct request_queue *q)
 
             req = list_entry(entry, struct request, queuelist);
 
+#if KFIOC_X_REQUEST_HAS_VOID_SPECIAL
             fbio = req->special;
+#else
+            fbio = req->q->queuedata;
+#endif
             if (!fbio)
             {
                 fbio = kfio_request_to_bio(disk, req, false);
@@ -3474,7 +3498,11 @@ static void kfio_do_request(struct request_queue *q)
                      * "busy error" conditions. Store the prepped part
                      * for faster retry, and exit.
                      */
+#if KFIOC_X_REQUEST_HAS_VOID_SPECIAL
                     req->special = fbio;
+#else
+                    req->q->queuedata = fbio;
+#endif
                     list_add(&req->queuelist, &list);
                     break;
                 }
