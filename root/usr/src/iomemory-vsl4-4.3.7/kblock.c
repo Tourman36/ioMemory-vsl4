@@ -27,7 +27,6 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //-----------------------------------------------------------------------------
 #if !defined (__linux__)
-#include <fio/common/env.h> // for debugging purposes
 #error "This file supports Linux only"
 #endif
 
@@ -1334,25 +1333,25 @@ void linux_bdev_update_stats(struct fio_bdev *bdev, int dir, uint64_t totalsize,
                 part_stat_add(cpu, &gd->part0, ticks[1], kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
 #           else
                 part_stat_add(&gd->part0, ticks[1], kfio_div64_64(duration * HZ, FIO_USEC_PER_SEC));
+#           endif
 #       endif
-#   endif
             part_stat_unlock();
-#endif /* defined(CONFIG_PREEMPT_RT) */
-# else /* KFIOC_PARTITION_STATS */
+#   endif /* defined(CONFIG_PREEMPT_RT) */
+#else /* KFIOC_PARTITION_STATS */
 
-#  if KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
+#   if KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
             disk_stat_inc(gd, ios[1]);
             disk_stat_add(gd, sectors[1], totalsize >> 9);
             disk_stat_add(gd, ticks[1], fusion_usectohz(duration));
-#  else /* KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS */
+#   else /* KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS */
             disk_stat_inc(gd, writes);
             disk_stat_add(gd, write_sectors, totalsize >> 9);
             disk_stat_add(gd, write_ticks, fusion_usectohz(duration));
-#  endif /* else ! KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS */
+#   endif /* else ! KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS */
             // TODO: #warning Need disk_round_stats() implementation to replace GPL version.
             // disk_round_stats(gd);
             disk_stat_add(gd, time_in_queue, kfio_get_gd_in_flight(disk, BIO_DIR_WRITE));
-# endif /* else ! KFIOC_PARTITION_STATS */
+#endif /* else ! KFIOC_PARTITION_STATS */
         }
     }
     else if (dir == BIO_DIR_READ)
@@ -1363,7 +1362,7 @@ void linux_bdev_update_stats(struct fio_bdev *bdev, int dir, uint64_t totalsize,
       (defined(CONFIG_PREEMPT_RT) || defined(CONFIG_TREE_PREEMPT_RCU) || defined(CONFIG_PREEMPT_RCU)))
             struct gendisk *gd = disk->gd;
 #endif
-# if KFIOC_PARTITION_STATS
+#if KFIOC_PARTITION_STATS
 #   if !defined(CONFIG_PREEMPT_RT) && !defined(CONFIG_TREE_PREEMPT_RCU) && !defined(CONFIG_PREEMPT_RCU)
             int cpu;
 
@@ -1390,54 +1389,55 @@ void linux_bdev_update_stats(struct fio_bdev *bdev, int dir, uint64_t totalsize,
 #       endif
             part_stat_unlock();
 #   endif /* defined(CONFIG_PREEMPT_RT) */
-# else /* KFIOC_PARTITION_STATS */
-#  if KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
+#else /* KFIOC_PARTITION_STATS */
+#   if KFIOC_HAS_DISK_STATS_READ_WRITE_ARRAYS
             disk_stat_inc(gd, ios[0]);
             disk_stat_add(gd, sectors[0], totalsize >> 9);
             disk_stat_add(gd, ticks[0], fusion_usectohz(duration));
-#  else /* KFIO_C_HAS_DISK_STATS_READ_WRITE_ARRAYS */
+#   else /* KFIO_C_HAS_DISK_STATS_READ_WRITE_ARRAYS */
             disk_stat_inc(gd, reads);
             disk_stat_add(gd, read_sectors, totalsize >> 9);
             disk_stat_add(gd, read_ticks, fusion_usectohz(duration));
-#  endif /* else ! KFIO_C_HAS_DISK_STATS_READ_WRITE_ARRAYS */
+#   endif /* else ! KFIO_C_HAS_DISK_STATS_READ_WRITE_ARRAYS */
 
             // TODO: #warning Need disk_round_stats() implementation to replace GPL version.
             // disk_round_stats(gd);
             disk_stat_add(gd, time_in_queue, kfio_get_gd_in_flight(disk, BIO_DIR_READ));
-# endif /* else ! KFIOC_PARTITION_STATS */
+#endif /* else ! KFIOC_PARTITION_STATS */
         }
     }
 #endif /* !defined(__VMKLNX__) */
 }
 
-#if !defined(__VMKLNX__) && !KFIOC_PARTITION_STATS
+#if !defined(__VMKLNX__) && defined(KFIOC_PARTITION_STATS)
 static int kfio_get_gd_in_flight(kfio_disk_t *disk, int rw)
 {
     struct gendisk *gd = disk->gd;
-#if KFIOC_PARTITION_STATS
-#   if KFIOC_HAS_INFLIGHT_RW || KFIOC_HAS_INFLIGHT_RW_ATOMIC
-        int dir = 0;
+#   if KFIOC_PARTITION_STATS
+#       if KFIOC_HAS_INFLIGHT_RW || KFIOC_HAS_INFLIGHT_RW_ATOMIC
+            int dir = 0;
 
-        // In the Linux kernel the direction isn't explicitly defined, however
-        // in linux/bio.h, you'll notice that its referenced as 1 for write and 0
-        // for read.
+            // In the Linux kernel the direction isn't explicitly defined, however
+            // in linux/bio.h, you'll notice that its referenced as 1 for write and 0
+            // for read.
 
-        if (rw == BIO_DIR_WRITE)
-            dir = 1;
+            if (rw == BIO_DIR_WRITE)
+                dir = 1;
 
-#       if KFIOC_HAS_INFLIGHT_RW_ATOMIC
-            return atomic_read(&gd->part0.in_flight[dir]);
+#           if KFIOC_HAS_INFLIGHT_RW_ATOMIC
+                return atomic_read(&gd->part0.in_flight[dir]);
+#           else
+                return gd->part0.in_flight[dir];
+#           endif /* KFIOC_HAS_INFLIGHT_RW_ATOMIC */
+#       elif KFIOC_X_PART0_HAS_IN_FLIGHT
+            return gd->part0.in_flight;
 #       else
-            return gd->part0.in_flight[dir];
-#       endif /* KFIOC_HAS_INFLIGHT_RW_ATOMIC */
-#   elif KFIOC_X_PART0_HAS_IN_FLIGHT
-        return gd->part0.in_flight;
+            return part_stat_read(&gd->part0, ios[STAT_WRITE]);
+#       endif /* KFIOC_HAS_INFLIGHT_RW  */
 #   else
-        return part_stat_read(&gd->part0, ios[STAT_WRITE]);
-#   endif /* KFIOC_HAS_INFLIGHT_RW  */
-#else
-    return gd->in_flight;
-    }
+        return gd->in_flight;
+#   endif /* KFIOC_PARTITION_STATS */
+}
 #endif /* !defined(__VMKLNX__) && !KFIOC_PARTITION_STATS */
 
 void linux_bdev_update_inflight(struct fio_bdev *bdev, int rw, int in_flight)
@@ -1579,16 +1579,14 @@ static unsigned long __kfio_bio_sync(struct bio *bio)
 {
 #if KFIOC_HAS_SEPARATE_OP_FLAGS
     return bio_flags(bio) == REQ_SYNC;
-#else
-#if KFIOC_HAS_UNIFIED_BLKTYPES
+#elif KFIOC_HAS_UNIFIED_BLKTYPES
     return bio->bi_rw & REQ_SYNC;
 #elif KFIOC_HAS_BIO_RW_FLAGGED
     return bio_rw_flagged(bio, BIO_RW_SYNCIO);
 #else
     return bio_sync(bio);
-#endif
-#endif
 }
+#endif
 
 static unsigned long __kfio_bio_atomic(struct bio *bio)
 {
@@ -1667,19 +1665,19 @@ static int errno_to_uptodate(int error)
 static void __kfio_bio_complete(struct bio *bio, uint32_t bytes_complete, int error)
 {
 #if KFIOC_BIO_ENDIO_REMOVED_ERROR
-#if KFIOC_BIO_ERROR_CHANGED_TO_STATUS
-    // bi_status is type blk_status_t, not an int errno, so must translate as necessary.
-    blk_status_t bio_status = BLK_STS_OK;
+#   if KFIOC_BIO_ERROR_CHANGED_TO_STATUS
+       // bi_status is type blk_status_t, not an int errno, so must translate as necessary.
+       blk_status_t bio_status = BLK_STS_OK;
 
-    if (unlikely(error != 0))
-    {
-        bio_status = kfio_errno_to_blk_status(error);
-    }
-    bio->bi_status = bio_status;            /* bi_error was changed to bi_status <sigh> */
-#else
-    bio->bi_error = error;                  /* now a member of the bio struct */
-#endif /* KFIOC_BIO_ERROR_CHANGED_TO_STATUS */
-#endif /* !KFIOC_BIO_ENDIO_HAS_ERROR */
+       if (unlikely(error != 0))
+       {
+           bio_status = kfio_errno_to_blk_status(error);
+       }
+       bio->bi_status = bio_status;            /* bi_error was changed to bi_status <sigh> */
+#   else
+       bio->bi_error = error;                  /* now a member of the bio struct */
+#   endif /* KFIOC_BIO_ERROR_CHANGED_TO_STATUS */
+#endif /* KFIOC_BIO_ENDIO_REMOVED_ERROR */
 
     bio_endio(bio
 #if KFIOC_BIO_ENDIO_HAS_BYTES_DONE
@@ -1687,7 +1685,7 @@ static void __kfio_bio_complete(struct bio *bio, uint32_t bytes_complete, int er
 #endif /* KFIOC_BIO_ENDIO_HAS_BYTES_DONE */
 #if !KFIOC_BIO_ENDIO_REMOVED_ERROR
               , error
-#endif /* KFIOC_BIO_ENDIO_HAS_ERROR */
+#endif /* KFIOC_BIO_ENDIO_REMOVED_ERROR */
               );
 }
 
@@ -2156,6 +2154,7 @@ static int kfio_bio_should_submit_now(struct bio *bio)
         return 1;
     }
 #endif
+
 #if KFIOC_DISCARD == 1
     return kfio_bio_is_discard(bio);
 #else
@@ -2639,9 +2638,9 @@ static int kfio_make_request(struct request_queue *queue, struct bio *bio)
     // Split the incomming bio if it has more segments than we have scatter-gather DMA vectors,
     //   and re-submit the remainder to the request queue. blk_queue_split() does all that for us.
     // It appears the kernel quit honoring the blk_queue_max_segments() in about 4.13.
-# if KFIOC_BIO_HAS_BIO_SEGMENTS
+# if KFIOC_X_BIO_HAS_BIO_SEGMENTS
     if (bio_segments(bio) >= queue_max_segments(queue))
-# elif KFIOC_BIO_HAS_BI_PHYS_SEGMENTS
+# elif KFIOC_X_BIO_HAS_BI_PHYS_SEGMENTS
     if (bio->bi_phys_segments >= queue_max_segments(queue))
 # else
     if (bio_phys_segments(queue, bio) >= queue_max_segments(queue))
