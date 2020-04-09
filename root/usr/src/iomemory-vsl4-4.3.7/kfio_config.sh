@@ -526,7 +526,7 @@ $1
     local test_dir="${CONFIGDIR}/${kfioc_flag}"
     local result=0
     local license="
-MODULE_LICENSE(\"Proprietary\");
+MODULE_LICENSE(\"GPL\");
 "
 
     mkdir -p "$test_dir"
@@ -2821,6 +2821,7 @@ KFIOC_HAS_BLK_MQ()
 {
     local test_flag="$1"
     local test_code='
+#include <linux/version.h>
 #if LINUX_VERSION_CODE > KERNEL_VERSION(3, 13, 0)
 #include <linux/blk-mq.h>
 

@@ -1327,7 +1327,7 @@ void linux_bdev_update_stats(struct fio_bdev *bdev, int dir, uint64_t totalsize,
 #       endif
 #       if KFIOC_X_HAS_DISK_STATS_NSECS && KFIOC_X_PART_STAT_REQUIRES_CPU
                 part_stat_add(cpu, &gd->part0, nsecs[1],   duration * FIO_NSEC_PER_USEC);   // Convert our usec duration to nsecs.
-#       elif KFIOC_X_HAS_DISK_STATS_NSECS && !KFIOC_XPART_STAT_REQUIRES_CPU
+#       elif KFIOC_X_HAS_DISK_STATS_NSECS && !KFIOC_X_PART_STAT_REQUIRES_CPU
                 part_stat_add(&gd->part0, nsecs[1], duration * FIO_NSEC_PER_USEC);   // Convert our usec duration to nsecs.
 #       else
 #           if KFIOC_X_PART_STAT_REQUIRES_CPU
